@@ -1,3 +1,8 @@
+"""
+Run with:
+
+python -m tests.fake
+"""
 import json
 import graphene
 from typing import List, Dict, Tuple, Type, Union

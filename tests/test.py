@@ -1,7 +1,7 @@
 """
 Run with:
 
-python -m unittest tests
+python -m unittest tests.test
 """
 from unittest import TestCase
 from graphene_chain_mutation import ShareResultMiddleware
