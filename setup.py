@@ -4,6 +4,10 @@ Egg format:
 
 Wheel format:
     python setup.py bdist_wheel --dist-dir=./dist && rm -rf ./*.egg-info
+
+Upload to Pypi:
+    pip install twine
+    twine upload dist/*
 """
 from setuptools import setup
 
