@@ -78,11 +78,11 @@ class ChildType(graphene.ObjectType, FakeModelFields):
     siblings = graphene.List(lambda: ChildType)
 
     @staticmethod
-    def resolve_parent(root: Child, _: graphene.ResolveInfo, **__):
+    def resolve_parent(root: Child, _: graphene.ResolveInfo):
         return FakeParentDB.get(root.parent)
 
     @staticmethod
-    def resolve_siblings(root: Child, _: graphene.ResolveInfo, **__):
+    def resolve_siblings(root: Child, _: graphene.ResolveInfo):
         return [FakeChildDB[pk] for pk in root.siblings]
 
 
@@ -175,19 +175,19 @@ class Query(graphene.ObjectType):
     children = graphene.List(ChildType)
 
     @staticmethod
-    def resolve_parent(_: None, __: graphene.ResolveInfo, pk: int, **___):
+    def resolve_parent(_: None, __: graphene.ResolveInfo, pk: int):
         return FakeParentDB[pk]
 
     @staticmethod
-    def resolve_parents(_: None, __: graphene.ResolveInfo, **___):
+    def resolve_parents(_: None, __: graphene.ResolveInfo):
         return FakeParentDB.values()
 
     @staticmethod
-    def resolve_child(_: None, __: graphene.ResolveInfo, pk: int, **___):
+    def resolve_child(_: None, __: graphene.ResolveInfo, pk: int):
         return FakeChildDB[pk]
 
     @staticmethod
-    def resolve_children(_: None, __: graphene.ResolveInfo, **___):
+    def resolve_children(_: None, __: graphene.ResolveInfo):
         return FakeChildDB.values()
 
 

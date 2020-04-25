@@ -20,15 +20,16 @@ class ShareResultMiddleware:
     """
     Inject a "shared_results" dict as a kwarg in the resolvers to allow them
     expose their results to following resolvers.
-    
-    # TODO: - inject only in resolvers of subclasses of SharedResultMutation
-    #       - or when the resolver accepts the parameter
     """
 
     shared_results = {}
 
     def resolve(self, next_resolver, root, info, **kwargs):
-        return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
+        if hasattr(next_resolver.args[0], "__self__") and \
+                issubclass(next_resolver.args[0].__self__, SharedResultMutation):
+            return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
+        else:
+            return next_resolver(root, info, **kwargs)
 
 
 class SharedResultMutation(graphene.Mutation):

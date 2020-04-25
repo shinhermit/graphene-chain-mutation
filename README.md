@@ -1,8 +1,8 @@
 # graphene-chain-mutation
 
-Provide feature to allow chaining mutations using Graphene-python
+Provide feature to allow chaining mutations using [Graphene-python](https://docs.graphene-python.org/en/latest/quickstart/)
 
-I created this package after [a quesiton I asked on Stackoverflow](https://stackoverflow.com/questions/61340137/graphene-graphql-how-to-chain-mutations/) and that I had to solve by myself in the end.
+I created this package after [a question I asked on Stackoverflow](https://stackoverflow.com/questions/61340137/graphene-graphql-how-to-chain-mutations/) and that I had to solve by myself in the end.
 
 `graphene-chain-mutation` allow to create edge-like mutations that can reference the results of previous mutations in the same query.
 
