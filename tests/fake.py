@@ -73,11 +73,11 @@ class ChildType(graphene.ObjectType, FakeModelFields):
     siblings = graphene.List(lambda: ChildType)
 
     @staticmethod
-    def resolve_parent(root: Child, _: graphene.ResolveInfo):
+    def resolve_parent(root: Child, _: graphene.ResolveInfo, **__):
         return FakeParentDB.get(root.parent)
 
     @staticmethod
-    def resolve_siblings(root: Child, _: graphene.ResolveInfo):
+    def resolve_siblings(root: Child, _: graphene.ResolveInfo, **__):
         return [FakeChildDB[pk] for pk in root.siblings]
 
 
@@ -104,6 +104,20 @@ class UpsertParent(SharedResultMutation, ParentType):
             data["pk"] = data.pk = Counters.PARENT_COUNTER
         FakeParentDB[data.pk] = Parent(**data.__dict__)
         return UpsertParent(**data.__dict__)
+
+
+class NormalParentMutation(graphene.Mutation, ParentType):
+    class Arguments:
+        data = ParentInput()
+
+    @staticmethod
+    def mutate(_: None, __: graphene.ResolveInfo, data: ParentInput = None, **___) -> 'NormalParentMutation':
+        instance = FakeParentDB.get(data.pk)
+        if instance is None:
+            Counters.PARENT_COUNTER += 1
+            data["pk"] = data.pk = Counters.PARENT_COUNTER
+        FakeParentDB[data.pk] = Parent(**data.__dict__)
+        return NormalParentMutation(**data.__dict__)
 
 
 class UpsertChild(SharedResultMutation, ChildType):
@@ -156,19 +170,19 @@ class Query(graphene.ObjectType):
     children = graphene.List(ChildType)
 
     @staticmethod
-    def resolve_parent(_: None, __: graphene.ResolveInfo, pk: int):
+    def resolve_parent(_: None, __: graphene.ResolveInfo, pk: int, **___):
         return FakeParentDB[pk]
 
     @staticmethod
-    def resolve_parents(_: None, __: graphene.ResolveInfo):
+    def resolve_parents(_: None, __: graphene.ResolveInfo, **___):
         return FakeParentDB.values()
 
     @staticmethod
-    def resolve_child(_: None, __: graphene.ResolveInfo, pk: int):
+    def resolve_child(_: None, __: graphene.ResolveInfo, pk: int, **___):
         return FakeChildDB[pk]
 
     @staticmethod
-    def resolve_children(_: None, __: graphene.ResolveInfo):
+    def resolve_children(_: None, __: graphene.ResolveInfo, **___):
         return FakeChildDB.values()
 
 
@@ -177,6 +191,7 @@ class Mutation(graphene.ObjectType):
     upsert_child = UpsertChild.Field()
     set_parent = SetParent.Field()
     add_sibling = AddSibling.Field()
+    normal_parent_mutation = NormalParentMutation.Field()
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
@@ -184,6 +199,8 @@ schema = graphene.Schema(query=Query, mutation=Mutation)
 
 #######################################
 # Run if you want
+#
+# python -m tests.fake
 #######################################
 
 
