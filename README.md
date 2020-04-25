@@ -95,6 +95,8 @@ This package provide:
 
 ## Usage
 
+5 steps (See the [test/fake.py module](https://github.com/shinhermit/graphene-chain-mutation/blob/master/tests/fake.py) for an executable example).
+
 1. Install the package (requires [graphene](https://pypi.org/project/graphene/))
    ```bash
    pip install graphene-chain-mutation
