@@ -37,6 +37,3 @@ jobs:
     - name: Test with unittest
       run: |
         python -m unittest tests.test
-    - name: Build package
-      run: |
-        python setup.py sdist --dist-dir=./dist && rm -rf ./*.egg-info
