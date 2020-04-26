@@ -126,7 +126,6 @@ class ParentChildEdgeMutation(EdgeMutationBase, graphene.Mutation):
             node2_type=cls.child_type
         )
         cls.set_link(parent_, child_)
-        cls.set_link(parent_, child_)
         return cls(ok=True)
 
     @classmethod
