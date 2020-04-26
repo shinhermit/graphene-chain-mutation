@@ -9,7 +9,7 @@ from typing import List, Dict, Tuple, Type, Union
 from graphene import ObjectType, Int
 from graphene_chain_mutation import (
     ShareResultMiddleware
-    ,SharedResultMutation
+    ,ShareResult
     ,ParentChildEdgeMutation
     ,SiblingEdgeMutation
 )
@@ -96,13 +96,13 @@ class ChildInput(graphene.InputObjectType, FakeModelFields):  # notice the diffe
 #######################################
 
 
-class UpsertParent(SharedResultMutation, ParentType):
+class UpsertParent(ShareResult, graphene.Mutation, ParentType):
     class Arguments:
         data = ParentInput()
 
     @staticmethod
-    def mutate_and_share_result(root: None, info: graphene.ResolveInfo,
-                                data: ParentInput = None, **__) -> 'UpsertParent':
+    def mutate(_: None, __: graphene.ResolveInfo,
+               data: ParentInput = None) -> 'UpsertParent':
         instance = FakeParentDB.get(data.pk)
         if instance is None:
             Counters.PARENT_COUNTER += 1
@@ -116,7 +116,7 @@ class NormalParentMutation(graphene.Mutation, ParentType):
         data = ParentInput()
 
     @staticmethod
-    def mutate(_: None, __: graphene.ResolveInfo, data: ParentInput = None, **___) -> 'NormalParentMutation':
+    def mutate(_: None, __: graphene.ResolveInfo, data: ParentInput = None) -> 'NormalParentMutation':
         instance = FakeParentDB.get(data.pk)
         if instance is None:
             Counters.PARENT_COUNTER += 1
@@ -125,13 +125,13 @@ class NormalParentMutation(graphene.Mutation, ParentType):
         return NormalParentMutation(**data.__dict__)
 
 
-class UpsertChild(SharedResultMutation, ChildType):
+class UpsertChild(ShareResult, graphene.Mutation, ChildType):
     class Arguments:
         data = ChildInput()
 
     @staticmethod
-    def mutate_and_share_result(root: None, info: graphene.ResolveInfo,
-                                data: ChildInput = None, **__) -> 'UpsertChild':
+    def mutate(_: None, __: graphene.ResolveInfo,
+               data: ChildInput = None) -> 'UpsertChild':
         instance = FakeChildDB.get(data.pk)
         if instance is None:
             Counters.CHILD_COUNTER += 1

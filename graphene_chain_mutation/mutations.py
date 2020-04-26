@@ -25,42 +25,52 @@ class ShareResultMiddleware:
     shared_results = {}
 
     def resolve(self, next_resolver, root, info, **kwargs):
-        if hasattr(next_resolver.args[0], "__self__") and \
-                issubclass(next_resolver.args[0].__self__, SharedResultMutation):
+        if hasattr(next_resolver.args[0], "__code__") and \
+                "shared_results" in next_resolver.args[0].__code__.co_varnames:
             return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
         else:
             return next_resolver(root, info, **kwargs)
 
 
-class SharedResultMutation(graphene.Mutation):
+class ShareResult:
     """
     A node-like mutation base that take into account the shared_results dict
-    injected by the ShareResultMiddleware. The mutation will automatically expose
-    its insert its results into the shared_results dict. Subclass must override
-    the mutate_and_share_result method instead of mutate.
-    
-    Do not forget to use the ShareResultMiddleware when executing queries.
+    injected by the ShareResultMiddleware. The mutation will automatically 
+    insert its results into the shared_results dict.
+
+    Do not forget to use the ShareResultMiddleware with your schema 
+    when executing queries.
     """
 
     @classmethod
-    def mutate(cls, root: None, info: graphene.ResolveInfo,
-               shared_results: Dict[str, ObjectType], **kwargs):
-        result = cls.mutate_and_share_result(root, info, **kwargs)
-        assert root is None, "SharedResultMutation must be a root mutation." \
-                             " Current mutation has a %s parent" % type(root)
-        node = info.path[0]
-        shared_results[node] = result
-        return result
+    def __init_subclass__(cls, **options):
+        """
+        We have to use __init_subclass__ because graphene does. We need to
+        tranform the "mutate" method before graphen.Mutation's method __init_subclass__
+        uses it to create a resolver.
+        """
+        initial_mutate = cls.mutate
+        def mutate(root: None, info: graphene.ResolveInfo,
+                   shared_results: Dict[str, ObjectType], **kwargs):
+            assert root is None, "SharedResult mutation must be a root mutation." \
+                                 " Current mutation has a %s parent" % type(root)
+            if "shared_results" in initial_mutate.__code__.co_varnames:
+                result = initial_mutate(root, info, shared_results, **kwargs)
+            else:
+                result = initial_mutate(root, info, **kwargs)
+            node = info.path[0]
+            shared_results[node] = result
+            return result
+        cls.mutate = mutate
+        super().__init_subclass__(**options)
 
-    @staticmethod
-    def mutate_and_share_result(root: None, info: graphene.ResolveInfo, **kwargs):
-        raise NotImplementedError("This method must be implemented in subclasses.")
 
-
-class EdgeMutationBase(SharedResultMutation):
+class EdgeMutationBase:
     """
-    Edge-like mutation base. Just define the declares the common
-    attribute "ok" and the abstract method mutate_and_share_result.
+    Edge-like mutation base.
+    
+    Just the declares the common attribute "ok" and 
+    the abstract method set_link.
     """
 
     ok = graphene.Boolean()
@@ -68,10 +78,6 @@ class EdgeMutationBase(SharedResultMutation):
     @classmethod
     def set_link(cls, node1: ObjectType, node2: ObjectType):
         raise NotImplementedError("This method must be implemented in subclasses.")
-
-    @staticmethod
-    def mutate_and_share_result(root: None, info: graphene.ResolveInfo, **__):
-        raise AttributeError("This method is not used in edge mutations.")
 
 
 def assert_input_node_types(shared_results: dict, node1: str, node2: str,
@@ -95,7 +101,7 @@ def assert_input_node_types(shared_results: dict, node1: str, node2: str,
     return node1_, node2_
 
 
-class ParentChildEdgeMutation(EdgeMutationBase):
+class ParentChildEdgeMutation(EdgeMutationBase, graphene.Mutation):
     """
     Edge-like mutation for FK links. Subclasses only need to override the
     set_link method.
@@ -109,8 +115,9 @@ class ParentChildEdgeMutation(EdgeMutationBase):
         child = graphene.String(required=True)
 
     @classmethod
-    def mutate(cls, root: None, info: graphene.ResolveInfo,
-               shared_results: dict, parent: str="", child: str="", **__):
+    def mutate(cls, _: None, __: graphene.ResolveInfo,
+               shared_results: Dict[str, ObjectType],
+               parent: str = "", child: str = "", **___):
         parent_, child_ = assert_input_node_types(
             shared_results,
             node1=parent,
@@ -127,7 +134,7 @@ class ParentChildEdgeMutation(EdgeMutationBase):
         raise NotImplementedError("This method must be implemented in subclasses.")
 
 
-class SiblingEdgeMutation(EdgeMutationBase):
+class SiblingEdgeMutation(EdgeMutationBase, graphene.Mutation):
     """
     Edge-like mutation for m2m links. Subclasses only need to override the
     set_link method.
@@ -141,8 +148,9 @@ class SiblingEdgeMutation(EdgeMutationBase):
         node2 = graphene.String(required=True)
 
     @classmethod
-    def mutate(cls, root: None, info: graphene.ResolveInfo,
-               shared_results: dict, node1: str="", node2: str="", **__):
+    def mutate(cls, _: None, __: graphene.ResolveInfo,
+               shared_results: Dict[str, ObjectType] = None,
+               node1: str = "", node2: str = "", **___):
         node1_, node2_ = assert_input_node_types(
             shared_results,
             node1=node1,

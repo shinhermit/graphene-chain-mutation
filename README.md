@@ -101,32 +101,32 @@ This package provide:
    ```bash
    pip install graphene-chain-mutation
    ```
-2. Write _node-like_ mutations by inheriting `SharedResultMutation`. Override `mutate_and_share_result` instead of `mutate`:
+2. Write _node-like_ mutations by inheriting `ShareResult` _before_ `graphene.Muation`:
    ```python
     import graphene
-    from graphene_chain_mutation import SharedResultMutation
+    from graphene_chain_mutation import ShareResult
     from .types import ParentType, ParentInput, ChildType, ChildInput
    
-    class CreateParent(SharedResultMutation, ParentType):
+    class CreateParent(ShareResult, graphene.Mutation, ParentType):
         class Arguments:
             data = ParentInput()
     
         @staticmethod
-        def mutate_and_share_result(_: None, __: graphene.ResolveInfo,
-                                    data: ParentInput = None, **___) -> 'CreateParent':
+        def mutate(_: None, __: graphene.ResolveInfo,
+                   data: ParentInput = None) -> 'CreateParent':
             return CreateParent(**data.__dict__)
     
-    class CreateChild(SharedResultMutation, ChildType):
+    class CreateChild(ShareResult, graphene.Mutation, ChildType):
         class Arguments:
             data = ChildInput()
     
         @staticmethod
-        def mutate_and_share_result(_: None, __: graphene.ResolveInfo,
-                                    data: ChildInput = None, **___) -> 'CreateChild':
+        def mutate(_: None, __: graphene.ResolveInfo,
+                   data: ChildInput = None) -> 'CreateChild':
             return CreateChild(**data.__dict__)
    ```
 3. Create _edge-like_ mutations by inheriting either `ParentChildEdgeMutation` (for FK relationships) or `SiblingEdgeMutation` (for m2m relationships). Specify the type of their input nodes and implement the `set_link` method:
-    ```python
+   ```python
     import graphene
     from graphene_chain_mutation import ParentChildEdgeMutation, SiblingEdgeMutation
     from .types import ParentType, ChildType
@@ -150,9 +150,9 @@ This package provide:
         def set_link(cls, node1: ChildType, node2: ChildType):
             FakeChildDB[node1.pk].siblings.append(node2.pk)
             FakeChildDB[node2.pk].siblings.append(node1.pk)
-    ```
+   ```
 4. Create your schema as usual
-    ```python
+   ```python
     class Query(graphene.ObjectType):
         parent = graphene.Field(ParentType, pk=graphene.Int())
         parents = graphene.List(ParentType)
@@ -166,15 +166,15 @@ This package provide:
         add_sibling = AddSibling.Field()
 
     schema = graphene.Schema(query=Query, mutation=Mutation)
-    ```
-5. Specify the middleware while executing a query:
-    ```python
+   ```
+5. Specify the `ShareResultMiddleware` middleware while executing a query:
+   ```python
     result = schema.execute(
         GRAPHQL_MUTATION
         ,variables = VARIABLES
         ,middleware=[ShareResultMiddleware()]
     )
-    ```
+   ```
 
 Now `GRAPHQL_MUTATION` can be a query where edge-like mutation reference the results of node-like mutations:
 
@@ -203,4 +203,16 @@ mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
     e3: addSibling(node1: "n2", node2: "n3") { ok }
 }
 """
+
+VARIABLES = dict(
+    parent = dict(
+        name = "Emilie"
+    )
+    ,child1 = dict(
+        name = "John"
+    )
+    ,child2 = dict(
+        name = "Julie"
+    )
+)
 ```

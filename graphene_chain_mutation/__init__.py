@@ -1,6 +1,6 @@
 from .mutations import (
     ShareResultMiddleware
-    ,SharedResultMutation
+    ,ShareResult
     ,EdgeMutationBase
     ,ParentChildEdgeMutation
     ,SiblingEdgeMutation
@@ -8,7 +8,7 @@ from .mutations import (
 
 __all__ = [
     "ShareResultMiddleware"
-    ,"SharedResultMutation"
+    ,"ShareResult"
     ,"EdgeMutationBase"
     ,"ParentChildEdgeMutation"
     ,"SiblingEdgeMutation"
