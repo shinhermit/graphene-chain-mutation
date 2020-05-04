@@ -140,6 +140,48 @@ class UpsertChild(ShareResult, graphene.Mutation, ChildType):
         return UpsertChild(**data.__dict__)
 
 
+class CreateChild(ShareResult, graphene.Mutation, ChildType):
+    """Test setting parent by reference in nested mutation."""
+
+    class Arguments:
+        data = ChildInput()
+ 
+    ref_parent = graphene.Field(ParentType, ref=graphene.String())
+    """Resolving this field sets a reference to parent from previous mutation result."""
+ 
+    @staticmethod
+    def mutate(_: None, __: graphene.ResolveInfo,
+               data: ChildInput = None) -> 'CreateChild':
+        instance = FakeChildDB.get(data.pk)
+        if instance is None:
+            Counters.CHILD_COUNTER += 1
+            data["pk"] = data.pk = Counters.CHILD_COUNTER
+        FakeChildDB[data.pk] = Child(**data.__dict__)
+        return CreateChild(**data.__dict__)
+ 
+    @staticmethod
+    def resolve_ref_parent(child: 'CreateChild', _: graphene.ResolveInfo,
+                           shared_results: Dict[str, ObjectType] = None,
+                           ref: str = None):
+        """
+        Nesting mutation by resolving a field and setting the parent of
+        this child by referencing the result of another mutation in
+        the same query.
+ 
+        :param child: result of the parent mutation (mutate method of this class)
+        :param _: graphene resolve info.
+        :param shared_results: result dict injected by the SharedResultMiddleware.
+        :param ref: name of the node of the PArent mutation in the query.
+        :return: the referenced parent.
+        """
+        assert ref is not None
+        assert shared_results is not None
+        parent = shared_results.get(ref)
+        assert parent is not None
+        FakeChildDB[child.pk].parent = parent.pk
+        return parent
+
+
 class SetParent(ParentChildEdgeMutation):
     """Set a FK like relation between between Parent and Child"""
 
@@ -194,6 +236,7 @@ class Query(graphene.ObjectType):
 class Mutation(graphene.ObjectType):
     upsert_parent = UpsertParent.Field()
     upsert_child = UpsertChild.Field()
+    create_child = CreateChild.Field()
     set_parent = SetParent.Field()
     add_sibling = AddSibling.Field()
     normal_parent_mutation = NormalParentMutation.Field()
@@ -234,6 +277,33 @@ mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
 }
 """
 
+GRAPHQL_NESTING_MUTATION = """
+mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
+    n1: upsertParent(data: $parent) {
+        pk
+        name
+    }
+    
+    n2: createChild(data: $child1) {
+        pk
+        name
+        parent: refParent(ref: "n1") {
+          pk
+          name
+        }
+    }
+    
+    n3: createChild(data: $child2) {
+        pk
+        name
+        parent: refParent(ref: "n1") {
+          pk
+          name
+        }
+    }
+}
+"""
+
 GRAPHQL_QUERY = """ 
 query {
     parents {
@@ -252,19 +322,35 @@ query {
 
 
 def main():
+    variables = dict(
+        parent = dict(
+            name = "Emilie"
+        )
+        ,child1 = dict(
+            name = "John"
+        )
+        ,child2 = dict(
+            name = "Julie"
+        )
+    )
+
     result = schema.execute(
         GRAPHQL_MUTATION
-        ,variables = dict(
-            parent = dict(
-                name = "Emilie"
-            )
-            ,child1 = dict(
-                name = "John"
-            )
-            ,child2 = dict(
-                name = "Julie"
-            )
-        )
+        ,variables = variables
+        ,middleware=[ShareResultMiddleware()]
+    )
+    print("="*50, "\nMutations\n", json.dumps(result.data, indent=4))
+    print("Errors: ", result.errors)
+    result = schema.execute(GRAPHQL_QUERY)
+    print("="*50, "\nQuery\n", json.dumps(result.data, indent=4))
+    print("Errors: ", result.errors)
+
+    FakeParentDB = {}
+    FakeChildDB = {}
+    Counters.CHILD_COUNTER = Counters.PARENT_COUNTER = 0
+    result = schema.execute(
+        GRAPHQL_NESTING_MUTATION
+        ,variables = variables
         ,middleware=[ShareResultMiddleware()]
     )
     print("="*50, "\nMutations\n", json.dumps(result.data, indent=4))

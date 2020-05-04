@@ -181,17 +181,17 @@ Now `GRAPHQL_MUTATION` can be a query where edge-like mutation reference the res
 ```python
 GRAPHQL_MUTATION = """
 mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
-    n1: upsertParent(data: $parent) {
+    n1: createParent(data: $parent) {
         pk
         name
     }
     
-    n2: upsertChild(data: $child1) {
+    n2: createChild(data: $child1) {
         pk
         name
     }
     
-    n3: upsertChild(data: $child2) {
+    n3: createChild(data: $child2) {
         pk
         name
     }
@@ -216,3 +216,93 @@ VARIABLES = dict(
     )
 )
 ```
+
+### Nesting with inline reference
+
+We can use the referencing capability offered by `ShareResultMiddleware` to reference the result of a root mutation in a nested mutation (that uses a resolver).
+
+Example:
+
+```python
+import graphene
+from graphene import ObjectType
+from graphene_chain_mutation import ShareResult
+from .types import ParentType, ParentInput, ChildType, ChildInput
+
+
+class CreateParent(ShareResult, graphene.Mutation, ParentType):
+    class Arguments:
+        data = ParentInput()
+
+    @staticmethod
+    def mutate(_: None, __: graphene.ResolveInfo,
+               data: ParentInput = None) -> 'CreateParent':
+        return CreateParent(**data.__dict__)
+
+
+class CreateChild(ShareResult, graphene.Mutation, ChildType):
+    class Arguments:
+        data = types.ChildInput()
+
+    ref_parent = graphene.Field(types.ParentType, ref=graphene.String())
+    """Resolving this field sets a reference to parent from previous mutation result."""
+
+    @staticmethod
+    def mutate(_: None, info: ResolveInfo,
+               data: types.ChildInput) -> 'CreateChild':
+        return UpdateChild(**data.__dict__)
+
+    @staticmethod
+    def resolve_ref_parent(child: 'CreateChild', _: graphene.ResolveInfo,
+                           shared_results: Dict[str, ObjectType] = None,
+                           ref: str = None):
+        """
+        Nesting mutation by resolving a field and setting the parent of
+        this child by referencing the result of another mutation in
+        the same query.
+
+        :param child: result of the parent mutation (mutate method of this class)
+        :param _: graphene resolve info.
+        :param shared_results: result dict injected by the SharedResultMiddleware.
+        :param ref: name of the node of the PArent mutation in the query.
+        :return: the referenced parent.
+        """
+        assert ref is not None
+        assert shared_results is not None
+        parent = shared_results.get(ref)
+        assert parent is not None
+        FakeChildDB[child.pk].parent = parent.pk
+        return parent
+```
+
+We can resolve a query like:
+
+```graphql
+mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
+    n1: createParent(data: $parent) {
+        pk
+        name
+    }
+    
+    n2: createChild(data: $child1) {
+        pk
+        name
+        parent: refParent(ref: "n1") {
+          pk
+          name
+        }
+    }
+    
+    n3: createChild(data: $child2) {
+        pk
+        name
+        parent: refParent(ref: "n1") {
+          pk
+          name
+        }
+    }
+}
+
+```
+
+Now keep in mind, as stated at the begining of this Readme, that nested mutation may have unpredictable results due to race condition. This is because, we recall, the order of execution of nested mutation is not guaranteed.

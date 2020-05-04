@@ -10,7 +10,7 @@ from .fake import schema
 
 class ShareResultTestCase(TestCase):
 
-    def test_chained_creation_works(self):
+    def test_1_chained_creation_works(self):
         result = self._execute_chained_creations()
         self.assertIsNone(result.errors)
         self.assertIsNotNone(result.data)
@@ -44,7 +44,7 @@ class ShareResultTestCase(TestCase):
         self._assert_julie(children[0]["siblings"][0])
         self._assert_john(children[1]["siblings"][0])
 
-    def test_chained_update_and_creation_works(self):
+    def test_2_chained_update_and_creation_works(self):
         result = self._execute_chained_updates_and_creations()
         self.assertIsNone(result.errors)
         self.assertIsNotNone(result.data)
@@ -82,12 +82,48 @@ class ShareResultTestCase(TestCase):
         self._assert_lucie(children[0]["siblings"][1])
         self._assert_john(children[1]["siblings"][0])
 
-    def test_share_result_middleware_does_not_mess_normal_mutations(self):
+    def test_3_share_result_middleware_does_not_mess_normal_mutations(self):
         result = self._execute_normal_mutation()
         self.assertIsNone(result.errors)
         self.assertIsNotNone(result.data)
         #
         self._assert_alex(result.data.get("alex", {}))
+
+    def test_4_nested_mutation_can_ref_root_mutation(self):
+        result = self._execute_nested_mutation_ref_root()
+        self.assertIsNone(result.errors)
+        self.assertIsNotNone(result.data)
+        #
+        self._assert_tessa(result.data.get("tessa", {}))
+        self._assert_bill(result.data.get("bill", {}))
+        self._assert_cassandre(result.data.get("cassandre", {}))
+        ###
+        result = self._execute_query()
+        self.assertIsNone(result.errors)
+        self.assertIsNotNone(result.data)
+        #
+        parents = result.data.get("parents")
+        self.assertIsNotNone(parents)
+        self.assertEqual(len(parents), 4)
+        self._assert_emilie(parents[0])
+        self._assert_robert(parents[1])
+        self._assert_alex(parents[2])
+        self._assert_tessa(parents[3])
+        #
+        children = result.data.get("children")
+        self.assertIsNotNone(children)
+        self.assertEqual(len(children), 5)
+        self._assert_john(children[0])
+        self._assert_julie(children[1])
+        self._assert_lucie(children[2])
+        self._assert_bill(children[3])
+        self._assert_cassandre(children[4])
+        #
+        self._assert_robert(children[0].get("parent"))
+        self._assert_emilie(children[1].get("parent"))
+        self._assert_emilie(children[2].get("parent"))
+        self._assert_tessa(children[3].get("parent"))
+        self._assert_tessa(children[4].get("parent"))
 
     @staticmethod
     def _execute_query():
@@ -229,6 +265,50 @@ class ShareResultTestCase(TestCase):
             ,middleware=[ShareResultMiddleware()]
         )
 
+    @staticmethod
+    def _execute_nested_mutation_ref_root():
+        query = """
+        mutation ($tessa: ParentInput, $bill: ChildInput, $cassandre: ChildInput) {
+            tessa: upsertParent(data: $tessa) {
+                pk
+                name
+            }
+            
+            bill: createChild(data: $bill) {
+                pk
+                name
+                parent: refParent(ref: "tessa") {
+                  pk
+                  name
+                }
+            }
+            
+            cassandre: createChild(data: $cassandre) {
+                pk
+                name
+                parent: refParent(ref: "tessa") {
+                  pk
+                  name
+                }
+            }
+        }
+        """
+        return schema.execute(
+            query
+            , variables=dict(
+                tessa=dict(
+                    name="Tessa"
+                )
+                , bill=dict(
+                    name="Bill"
+                )
+                , cassandre=dict(
+                    name="Cassandre"
+                )
+            )
+            , middleware=[ShareResultMiddleware()]
+        )
+
     def _assert_emilie(self, emilie: dict):
         self.assertIsNotNone(emilie)
         self.assertEqual(emilie.get("pk"), 1)
@@ -244,6 +324,11 @@ class ShareResultTestCase(TestCase):
         self.assertEqual(alex.get("pk"), 3)
         self.assertEqual(alex.get("name"), "Alex")
 
+    def _assert_tessa(self, tessa: dict):
+        self.assertIsNotNone(tessa)
+        self.assertEqual(tessa.get("pk"), 4)
+        self.assertEqual(tessa.get("name"), "Tessa")
+
     def _assert_john(self, john: dict):
         self.assertIsNotNone(john)
         self.assertEqual(john.get("pk"), 1)
@@ -258,3 +343,13 @@ class ShareResultTestCase(TestCase):
         self.assertIsNotNone(lucie)
         self.assertEqual(lucie.get("pk"), 3)
         self.assertEqual(lucie.get("name"), "Lucie")
+
+    def _assert_bill(self, bill: dict):
+        self.assertIsNotNone(bill)
+        self.assertEqual(bill.get("pk"), 4)
+        self.assertEqual(bill.get("name"), "Bill")
+
+    def _assert_cassandre(self, cassandre: dict):
+        self.assertIsNotNone(cassandre)
+        self.assertEqual(cassandre.get("pk"), 5)
+        self.assertEqual(cassandre.get("name"), "Cassandre")
