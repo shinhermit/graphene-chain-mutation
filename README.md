@@ -248,7 +248,7 @@ class CreateChild(ShareResult, graphene.Mutation, ChildType):
     """Resolving this field sets a reference to parent from previous mutation result."""
 
     @staticmethod
-    def mutate(_: None, info: ResolveInfo,
+    def mutate(_: None, info: graphene.ResolveInfo,
                data: types.ChildInput) -> 'CreateChild':
         return UpdateChild(**data.__dict__)
 
