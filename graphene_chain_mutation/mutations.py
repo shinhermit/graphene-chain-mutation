@@ -8,7 +8,8 @@ to inject a result holder in the resolvers and then use these results
 to allow referencing a mutation result in another mutation of
 the same query.
 """
-from typing import List, Dict, Tuple, Type, Union
+from inspect import signature
+from typing import Dict, Tuple, Type, Union
 import graphene
 from graphene import ObjectType, Int
 
@@ -26,7 +27,7 @@ class ShareResultMiddleware:
 
     def resolve(self, next_resolver, root, info, **kwargs):
         if hasattr(next_resolver.args[0], "__code__") and \
-                "shared_results" in next_resolver.args[0].__code__.co_varnames:
+                "shared_results" in signature(next_resolver.args[0]).parameters:
             return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
         else:
             return next_resolver(root, info, **kwargs)
@@ -54,7 +55,7 @@ class ShareResult:
                    shared_results: Dict[str, ObjectType], **kwargs):
             assert root is None, "SharedResult mutation must be a root mutation." \
                                  " Current mutation has a %s parent" % type(root)
-            if "shared_results" in initial_mutate.__code__.co_varnames:
+            if "shared_results" in signature(initial_mutate).parameters:
                 result = initial_mutate(root, info, shared_results=shared_results, **kwargs)
             else:
                 result = initial_mutate(root, info, **kwargs)
