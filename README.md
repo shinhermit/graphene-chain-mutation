@@ -306,3 +306,9 @@ mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
 ```
 
 Now keep in mind, as stated at the begining of this Readme, that nested mutation may have unpredictable results due to race condition. This is because, we recall, the order of execution of nested mutation is not guaranteed.
+
+## Caveats
+
+### Decoratored resolvers
+
+If you create a decorator that you'll use on your resolvers (for example to check permissions), be sure to use `functools.wraps`, so that the signature of the resolver is preserved (as returned by `inspect.signature`). See [more about functools.wraps in the official documentation](https://docs.python.org/3.5/library/functools.html#functools.wraps).
