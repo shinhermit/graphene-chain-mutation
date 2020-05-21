@@ -55,7 +55,7 @@ class ShareResult:
             assert root is None, "SharedResult mutation must be a root mutation." \
                                  " Current mutation has a %s parent" % type(root)
             if "shared_results" in initial_mutate.__code__.co_varnames:
-                result = initial_mutate(root, info, shared_results, **kwargs)
+                result = initial_mutate(root, info, shared_results=shared_results, **kwargs)
             else:
                 result = initial_mutate(root, info, **kwargs)
             node = info.path[0]
