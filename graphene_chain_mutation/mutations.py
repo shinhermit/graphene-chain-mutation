@@ -47,7 +47,7 @@ class ShareResult:
     def __init_subclass__(cls, **options):
         """
         We have to use __init_subclass__ because graphene does. We need to
-        tranform the "mutate" method before graphen.Mutation's method __init_subclass__
+        transform the "mutate" method before graphene.Mutation's method __init_subclass__
         uses it to create a resolver.
         """
         initial_mutate = cls.mutate
