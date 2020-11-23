@@ -26,11 +26,7 @@ class ShareResultMiddleware:
     shared_results = {}
 
     def resolve(self, next_resolver, root, info, **kwargs):
-        if hasattr(next_resolver.args[0], "__code__") and \
-                "shared_results" in signature(next_resolver.args[0]).parameters:
-            return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
-        else:
-            return next_resolver(root, info, **kwargs)
+        return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
 
 
 class ShareResult:
@@ -47,20 +43,21 @@ class ShareResult:
     def __init_subclass__(cls, **options):
         """
         We have to use __init_subclass__ because graphene does. We need to
-        transform the "mutate" method before graphene.Mutation's method __init_subclass__
+        transform the "mutate" method before graphens.Mutation's method __init_subclass__
         uses it to create a resolver.
         """
         initial_mutate = cls.mutate
         def mutate(root: None, info: graphene.ResolveInfo,
-                   shared_results: Dict[str, ObjectType], **kwargs):
+                   shared_results: Dict[str, ObjectType]=None, **kwargs):
             assert root is None, "SharedResult mutation must be a root mutation." \
                                  " Current mutation has a %s parent" % type(root)
             if "shared_results" in signature(initial_mutate).parameters:
                 result = initial_mutate(root, info, shared_results=shared_results, **kwargs)
             else:
                 result = initial_mutate(root, info, **kwargs)
-            node = info.path[0]
-            shared_results[node] = result
+            if shared_results is not None:
+                node = info.path[0]
+                shared_results[node] = result
             return result
         cls.mutate = mutate
         super().__init_subclass__(**options)
