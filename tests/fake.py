@@ -160,8 +160,7 @@ class CreateChild(ShareResult, graphene.Mutation, ChildType):
         return CreateChild(**data.__dict__)
  
     @staticmethod
-    def resolve_ref_parent(child: 'CreateChild', _: graphene.ResolveInfo,
-                           shared_results: Dict[str, ObjectType] = None,
+    def resolve_ref_parent(child: 'CreateChild', info: graphene.ResolveInfo,
                            ref: str = None):
         """
         Nesting mutation by resolving a field and setting the parent of
@@ -169,14 +168,13 @@ class CreateChild(ShareResult, graphene.Mutation, ChildType):
         the same query.
  
         :param child: result of the parent mutation (mutate method of this class)
-        :param _: graphene resolve info.
-        :param shared_results: result dict injected by the SharedResultMiddleware.
-        :param ref: name of the node of the PArent mutation in the query.
+        :param info: graphene resolve info.
+        :param ref: name of the node of the Parent mutation in the query.
         :return: the referenced parent.
         """
         assert ref is not None
-        assert shared_results is not None
-        parent = shared_results.get(ref)
+        assert info.context.shared_results is not None
+        parent = info.context.shared_results.get(ref)
         assert parent is not None
         FakeChildDB[child.pk].parent = parent.pk
         return parent
@@ -334,10 +332,12 @@ def main():
         )
     )
 
+    class NullContext: pass
+
     result = schema.execute(
         GRAPHQL_MUTATION
         ,variables = variables
-        ,middleware=[ShareResultMiddleware()]
+        ,context=NullContext()
     )
     print("="*50, "\nMutations\n", json.dumps(result.data, indent=4))
     print("Errors: ", result.errors)
@@ -351,7 +351,7 @@ def main():
     result = schema.execute(
         GRAPHQL_NESTING_MUTATION
         ,variables = variables
-        ,middleware=[ShareResultMiddleware()]
+        ,context=NullContext()
     )
     print("="*50, "\nMutations\n", json.dumps(result.data, indent=4))
     print("Errors: ", result.errors)

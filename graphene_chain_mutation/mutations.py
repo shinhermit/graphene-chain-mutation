@@ -8,8 +8,7 @@ to inject a result holder in the resolvers and then use these results
 to allow referencing a mutation result in another mutation of
 the same query.
 """
-from inspect import signature
-from typing import Dict, Tuple, Type, Union
+from typing import Tuple, Type, Union
 import graphene
 from graphene import ObjectType, Int
 
@@ -19,27 +18,31 @@ Integers = Union[Int, int]  # fix type checks warnings
 
 class ShareResultMiddleware:
     """
-    Inject a "shared_results" dict as a kwarg in the resolvers to allow them
+    Inject a "shared_results" dict in the context to allow resolvers to
     expose their results to following resolvers.
+
+    This middleware allow to systematically share the results of all resolver.
+    For a more selective sharing, use the ShareResult class.
     """
-
-    shared_results = {}
-
-    def resolve(self, next_resolver, root, info, **kwargs):
-        if hasattr(next_resolver.args[0], "__code__") and \
-                "shared_results" in signature(next_resolver.args[0]).parameters:
-            return next_resolver(root, info, shared_results=self.shared_results, **kwargs)
-        else:
-            return next_resolver(root, info, **kwargs)
+    def resolve(self, next_resolver, root, info: graphene.ResolveInfo, **kwargs):
+        assert info.context is not None, "Please provide an execution context. "\
+                                         "A simple class like `class NullContext: pass` "\
+                                         "would do the trick."
+        if not hasattr(info.context, "shared_results"):
+            info.context.shared_results = {}
+        result =  next_resolver(root, info, **kwargs)
+        node = info.path[0]
+        info.context.shared_results[node] = result
+        return result
 
 
 class ShareResult:
     """
     A node-like mutation base that take into account the shared_results dict
-    injected by the ShareResultMiddleware. The mutation will automatically 
+    injected by the ShareResultMiddleware. The mutation will automatically
     insert its results into the shared_results dict.
 
-    Do not forget to use the ShareResultMiddleware with your schema 
+    Do not forget to use the ShareResultMiddleware with your schema
     when executing queries.
     """
 
@@ -51,16 +54,17 @@ class ShareResult:
         uses it to create a resolver.
         """
         initial_mutate = cls.mutate
-        def mutate(root: None, info: graphene.ResolveInfo,
-                   shared_results: Dict[str, ObjectType], **kwargs):
+        def mutate(root: None, info: graphene.ResolveInfo, **kwargs):
             assert root is None, "SharedResult mutation must be a root mutation." \
                                  " Current mutation has a %s parent" % type(root)
-            if "shared_results" in signature(initial_mutate).parameters:
-                result = initial_mutate(root, info, shared_results=shared_results, **kwargs)
-            else:
-                result = initial_mutate(root, info, **kwargs)
+            assert info.context is not None, "Please provide an execution context. "\
+                                             "A simple class like `class NullContext: pass` "\
+                                             "would do the trick."
+            if not hasattr(info.context, "shared_results"):
+                info.context.shared_results = {}
+            result = initial_mutate(root, info, **kwargs)
             node = info.path[0]
-            shared_results[node] = result
+            info.context.shared_results[node] = result
             return result
         cls.mutate = mutate
         super().__init_subclass__(**options)
@@ -69,8 +73,8 @@ class ShareResult:
 class EdgeMutationBase:
     """
     Edge-like mutation base.
-    
-    Just the declares the common attribute "ok" and 
+
+    Just the declares the common attribute "ok" and
     the abstract method set_link.
     """
 
@@ -116,11 +120,10 @@ class ParentChildEdgeMutation(EdgeMutationBase, graphene.Mutation):
         child = graphene.String(required=True)
 
     @classmethod
-    def mutate(cls, _: None, __: graphene.ResolveInfo,
-               shared_results: Dict[str, ObjectType],
+    def mutate(cls, _: None, info: graphene.ResolveInfo,
                parent: str = "", child: str = "", **___):
         parent_, child_ = assert_input_node_types(
-            shared_results,
+            info.context.shared_results,
             node1=parent,
             node2=child,
             node1_type=cls.parent_type,
@@ -148,11 +151,10 @@ class SiblingEdgeMutation(EdgeMutationBase, graphene.Mutation):
         node2 = graphene.String(required=True)
 
     @classmethod
-    def mutate(cls, _: None, __: graphene.ResolveInfo,
-               shared_results: Dict[str, ObjectType] = None,
+    def mutate(cls, _: None, info: graphene.ResolveInfo,
                node1: str = "", node2: str = "", **___):
         node1_, node2_ = assert_input_node_types(
-            shared_results,
+            info.context.shared_results,
             node1=node1,
             node2=node2,
             node1_type=cls.node1_type,

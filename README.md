@@ -89,8 +89,8 @@ The feature we need is simply allowing _edge-like_ operations using _nodes_ from
 
 This package provide:
 
-1. A [Graphene middleware](https://docs.graphene-python.org/en/latest/execution/middleware/) that, if used, will inject a `dict` in your root resolvers so that they can _"share their results"_ if needed.
-2. A mutation class that will automatically _"share its results"_ using the `dict` injected by the middleware.
+1. A mutation class that will automatically _"share its results"_ using the `dict` __injected in resolve context__.
+1. A [Graphene middleware](https://docs.graphene-python.org/en/latest/execution/middleware/) that, if used, will share the results of all resolvers (even those not inheriting from the class above).
 3. 2 base edge mutation classes, to accept GraphQL alias as input argument to retrieve the results of previous mutations in the same query.
 
 ## Usage
@@ -101,7 +101,7 @@ This package provide:
    ```bash
    pip install graphene-chain-mutation
    ```
-2. Write _node-like_ mutations by inheriting `ShareResult` _before_ `graphene.Muation`:
+2. Write _node-like_ mutations by inheriting `ShareResult` _before_ `graphene.Mutation`:
    ```python
     import graphene
     from graphene_chain_mutation import ShareResult
@@ -167,12 +167,14 @@ This package provide:
 
     schema = graphene.Schema(query=Query, mutation=Mutation)
    ```
-5. Specify the `ShareResultMiddleware` middleware while executing a query:
+5. We need a context while executing a query:
    ```python
+    class NullContext: pass
+ 
     result = schema.execute(
         GRAPHQL_MUTATION
         ,variables = VARIABLES
-        ,middleware=[ShareResultMiddleware()]
+        ,context=NullContext()
     )
    ```
 
@@ -219,7 +221,7 @@ VARIABLES = dict(
 
 ### Nesting with inline reference
 
-We can use the referencing capability offered by `ShareResultMiddleware` to reference the result of a root mutation in a nested mutation (that uses a resolver).
+We can use the referencing capability offered by the `ShareResult` class to reference the result of a root mutation in a nested mutation (that uses a resolver).
 
 Example:
 
@@ -248,13 +250,12 @@ class CreateChild(ShareResult, graphene.Mutation, ChildType):
     """Resolving this field sets a reference to parent from previous mutation result."""
 
     @staticmethod
-    def mutate(_: None, info: graphene.ResolveInfo,
+    def mutate(_: None, __: graphene.ResolveInfo,
                data: types.ChildInput) -> 'CreateChild':
         return UpdateChild(**data.__dict__)
 
     @staticmethod
-    def resolve_ref_parent(child: 'CreateChild', _: graphene.ResolveInfo,
-                           shared_results: Dict[str, ObjectType] = None,
+    def resolve_ref_parent(child: 'CreateChild', info: graphene.ResolveInfo,
                            ref: str = None):
         """
         Nesting mutation by resolving a field and setting the parent of
@@ -262,14 +263,13 @@ class CreateChild(ShareResult, graphene.Mutation, ChildType):
         the same query.
 
         :param child: result of the parent mutation (mutate method of this class)
-        :param _: graphene resolve info.
-        :param shared_results: result dict injected by the SharedResultMiddleware.
+        :param info: graphene resolve info.
         :param ref: name of the node of the PArent mutation in the query.
         :return: the referenced parent.
         """
         assert ref is not None
-        assert shared_results is not None
-        parent = shared_results.get(ref)
+        assert info.context.shared_results is not None
+        parent = info.context.shared_results.get(ref)
         assert parent is not None
         FakeChildDB[child.pk].parent = parent.pk
         return parent
@@ -305,7 +305,7 @@ mutation ($parent: ParentInput, $child1: ChildInput, $child2: ChildInput) {
 
 ```
 
-Now keep in mind, as stated at the begining of this Readme, that nested mutation may have unpredictable results due to race condition. This is because, we recall, the order of execution of nested mutation is not guaranteed.
+Now keep in mind, as stated at the beginning of this Readme, that nested mutation may have unpredictable results due to race condition. This is because, we recall, the order of execution of nested mutation is not guaranteed.
 
 ## Caveats
 

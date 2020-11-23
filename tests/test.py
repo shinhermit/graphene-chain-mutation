@@ -4,8 +4,10 @@ Run with:
 python -m unittest tests.test
 """
 from unittest import TestCase
-from graphene_chain_mutation import ShareResultMiddleware
 from .fake import schema
+
+
+class NullContext: pass
 
 
 class ShareResultTestCase(TestCase):
@@ -144,7 +146,7 @@ class ShareResultTestCase(TestCase):
         """
         return schema.execute(
             query
-            , middleware=[ShareResultMiddleware()]
+            ,context=NullContext()
         )
 
     @staticmethod
@@ -186,7 +188,7 @@ class ShareResultTestCase(TestCase):
                     name="Julie"
                 )
             )
-            , middleware=[ShareResultMiddleware()]
+            ,context=NullContext()
         )
 
     @staticmethod
@@ -242,7 +244,7 @@ class ShareResultTestCase(TestCase):
                     ,parent=1
                 )
             )
-            , middleware=[ShareResultMiddleware()]
+            ,context=NullContext()
         )
 
     @staticmethod
@@ -262,7 +264,7 @@ class ShareResultTestCase(TestCase):
                     name="Alex"
                 )
             )
-            ,middleware=[ShareResultMiddleware()]
+            ,context=NullContext()
         )
 
     @staticmethod
@@ -295,7 +297,7 @@ class ShareResultTestCase(TestCase):
         """
         return schema.execute(
             query
-            , variables=dict(
+            ,variables=dict(
                 tessa=dict(
                     name="Tessa"
                 )
@@ -306,7 +308,7 @@ class ShareResultTestCase(TestCase):
                     name="Cassandre"
                 )
             )
-            , middleware=[ShareResultMiddleware()]
+            ,context=NullContext()
         )
 
     def _assert_emilie(self, emilie: dict):
