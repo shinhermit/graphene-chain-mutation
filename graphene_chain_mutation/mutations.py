@@ -63,7 +63,7 @@ class ShareResult:
             if not hasattr(info.context, "shared_results"):
                 info.context.shared_results = {}
             result = initial_mutate(root, info, **kwargs)
-            node = info.path[0]
+            node = info.path.key
             info.context.shared_results[node] = result
             return result
         cls.mutate = mutate
